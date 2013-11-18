@@ -20,6 +20,9 @@
 #include <CL/opencl.h>
 #include "util.h"
 
+#define BLOCKSIZE 16
+#define GLOBALSIZE 1024
+
 using namespace cv;
 using namespace std;
 
@@ -156,7 +159,82 @@ int main(int argc, char* argv[])
     d_templateImage = clCreateBuffer(clContext, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, template_size, h_template, &errcode);
     d_output = clCreateBuffer(clContext, CL_MEM_READ_WRITE, output_size, NULL, &errcode);
 
+   //  Create program and kernel
+   // Load Program source
+   char *source = OpenCL_LoadProgramSource("templatematch.cl");
+   if(!source)
+      FATAL("Error: Failed to load compute program from file!\n",0);
 
+   // Create the compute program from the source buffer
+   if(!(clProgram = clCreateProgramWithSource(clContext, 1, (const char **) & source, NULL, &errcode)))
+        FATAL("Failed to create compute program!",errcode);
+
+   // Build the program executable
+   errcode = clBuildProgram(clProgram, 0, NULL, NULL, NULL, NULL);
+   if (errcode != CL_SUCCESS)
+   {
+        size_t len=2048;
+        char buffer[2048];
+
+        printf("Error: Failed to build program executable!\n");
+        clGetProgramBuildInfo(clProgram, device_id, CL_PROGRAM_BUILD_LOG, sizeof(buffer), buffer, &len);
+
+        printf("%s \n", buffer);
+        FATAL("Failed: program build", errcode);
+   }
+
+   clKernel = clCreateKernel(clProgram, "template", &errcode);
+   OpenCL_CheckError(errcode, "clCreateKernel"); 
+
+    // set Kernels
+    errcode = clSetKernelArg(clKernel, 0, sizeof(cl_mem), (void *)&d_output);
+    errcode = errcode = clSetKernelArg(clKernel, 1, sizeof(cl_mem), (void*)&d_inputImage);
+    errcode = clSetKernelArg(clKernel, 2, sizeof(cl_mem), (void *)&d_templateImage);
+    errcode = clSetKernelArg(clKernel, 3, sizeof(int), (void *)&img_r_float.rows);
+    errcode = clSetKernelArg(clKernel, 4, sizeof(int), (void *)&img_r_float.cols);
+    errcode = clSetKernelArg(clKernel, 5, sizeof(int), (void *)&template_half_height);
+    errcode = clSetKernelArg(clKernel, 6, sizeof(int), (void *)&temp_r_float.rows);
+    errcode = clSetKernelArg(clKernel, 7, sizeof(int), (void *)&template_half_width);
+    errcode = clSetKernelArg(clKernel, 8, sizeof(int), (void *)&temp_r_float.cols);
+    errcode = clSetKernelArg(clKernel, 9, sizeof(int), (void *)&template_size);
+    errcode = clSetKernelArg(clKernel, 10, sizeof(float), (void *)&temp_r_mean_float);
+    OpenCL_CheckError(errcode, "clSetKernelArg");
+
+    // Launch OpenCL Kernel
+    size_t localWorkSize[2], globalWorkSize[2];
+    localWorkSize[0] = BLOCKSIZE;
+    localWorkSize[1] = BLOCKSIZE;
+    globalWorkSize[0] = GLOBALSIZE;
+    globalWorkSize[1] = GLOBALSIZE;
+    
+    cl_event event;
+    errcode = clEnqueueNDRangeKernel(clCommandQueue, clKernel, 2, NULL,     globalWorkSize, localWorkSize, 0, NULL, &event);
+    errcode =  clWaitForEvents(1, &event);
+    OpenCL_CheckError(errcode, "clEnqueueNDRangeKernel");
+
+    // Retrieve result from device
+    errcode = clEnqueueReadBuffer(clCommandQueue, d_output, CL_TRUE, 0,     output_size, h_output, 0, NULL, NULL);
+    OpenCL_CheckError(errcode, "clEnqueueReadBuffer");
+
+    // print some values
+    for (int i = 0; i < 100; i++)
+    {
+        printf("%.2f\t", h_output[i]);
+    }
+    
+    // Clean up
+    free(h_output);
+    free(h_template);
+    free(h_image);
+    
+    clReleaseMemObject(d_output);
+    clReleaseMemObject(d_inputImage);
+    clReleaseMemObject(d_templateImage);
+
+    clReleaseContext(clContext);
+    clReleaseKernel(clKernel);
+    clReleaseProgram(clProgram);
+    clReleaseCommandQueue(clCommandQueue);
 
 
     return 0;
