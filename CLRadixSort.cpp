@@ -459,6 +459,16 @@ void CLRadixSort::Check(){
 
 }
 
+void CLRadixSort::CopyResults(int* sortedList, int length)
+{
+    assert(length <= nkeys);
+    RecupGPU();
+    for (int i = 0; i < length; i++)
+    {
+        sortedList[i] = h_Keys[i];
+    }
+}
+
 void CLRadixSort::PICSorting(void){
 
   // allocate positions and velocities of particles

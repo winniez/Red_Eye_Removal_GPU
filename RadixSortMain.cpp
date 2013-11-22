@@ -42,8 +42,9 @@ int main(void){
 	assert (status == CL_SUCCESS);
 	cout <<"OpenCL initializations OK !"<<endl<<endl;
     srand (time(NULL));
-    int size = 1024;
+    int size = 256;
     int *ori = (int*) malloc(size * sizeof(int));
+    int *sorted = (int*)malloc(size * sizeof(int));
     for (int i = 0; i < size; i++)
     {
         ori[i] = ((rand()) % 20000); 
@@ -81,7 +82,12 @@ int main(void){
 	cout << rs.sort_time <<" s total GPU time (without memory transfers)"<<endl;
 	// check the results (debugging)
 	rs.Check();
+    rs.CopyResults(sorted, size);
 
+    for (int i=size-1; i>size-20; i--)
+    {
+        printf("%d\t", sorted[i]);
+    }
 	return 0;
 
 }

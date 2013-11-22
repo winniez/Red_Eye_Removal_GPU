@@ -4,6 +4,7 @@
 #include <opencv2/opencv.hpp>
 
 #include "CLRadixSort.hpp"
+#include "CLRadixSort.cpp"
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
@@ -26,18 +27,6 @@
 using namespace cv;
 using namespace std;
 
-cv::Mat grayImageFromFile(const char* filename)
-{
-    cv::Mat img = cv::imread(filename);
-    if (!img.data)
-    {
-        printf("Could not load image file %s\n", filename);
-        exit(1);
-    }
-    return img;
-}
-
-
 int main(int argc, char* argv[])
 {
     // inputs
@@ -48,8 +37,6 @@ int main(int argc, char* argv[])
     Mat templateImage;
 
     // load image
-    // inputImage = grayImageFromFile(input_file);
-    // templateImage = grayImageFromFile(template_file);
     inputImage = imread(argv[1], CV_LOAD_IMAGE_COLOR);
     templateImage = imread(argv[2], CV_LOAD_IMAGE_COLOR);
     if ((!inputImage.data) || (!templateImage.data))
@@ -57,6 +44,16 @@ int main(int argc, char* argv[])
         printf("Failed loading image.\n");
         return -1;
     }
+
+    // convert to grayscale
+    Mat gray_image, gray_template;
+    cvtColor( inputImage, gray_image, CV_BGR2GRAY );
+    cvtColor( templateImage, gray_template, CV_BGR2GRAY);
+    // convert grayscale image to float 
+    Mat gray_img_float, gray_template_float;
+    gray_image.convertTo(gray_img_float, CV_32FC1);
+    gray_template.convertTo(gray_template_float, CV_32FC1);
+
 
     vector<Mat> image_bgr;
     vector<Mat> template_bgr;
@@ -72,9 +69,11 @@ int main(int argc, char* argv[])
     template_bgr[2].convertTo(temp_r_float, CV_32FC1);
 
     // compute mean of template_r_float
-    Scalar temp_r_mean = mean(temp_r_float);
-    float temp_r_mean_float = temp_r_mean.val[0];
-    printf("temp_r_mean_float: %f\n", temp_r_mean_float);
+    //Scalar temp_r_mean = mean(temp_r_float);
+    Scalar temp_gray_mean = mean(gray_template_float);
+    float temp_gray_mean_float = temp_gray_mean.val[0];
+    //float temp_r_mean_float = temp_r_mean.val[0];
+    printf("temp_gray_mean_float: %f\n", temp_gray_mean_float);
 
 
     unsigned int output_size = img_r_float.rows * img_r_float.cols;
@@ -83,38 +82,26 @@ int main(int argc, char* argv[])
     unsigned int template_half_height = templateImage.rows/2;
     unsigned int template_half_width = templateImage.cols/2;
 
-    // print out the data array
-    /*
-    for (int i = 0; i < temp_r_float.cols; i++)
-    {
-        for (int j = 0; j < temp_r_float.rows; j++)
-        {
-            printf("%f\t", temp_r_float.at<float>(i,j));
-        }
-        printf("\n");
-    }
-    cout << "temp_r_float = "<< endl << " "  << temp_r_float << endl << endl;
-    */
-
     // allocate host memory and convert image red channel into 1d array
     printf("input_size: %d, template_size: %d\n", input_size, template_size);
     float* h_output = (float*)malloc(input_size * sizeof(float));
     float* h_image = (float*) malloc(input_size * sizeof(float));
     float *h_template = (float*)malloc(template_size * sizeof(float));
     
-    for (int i = 0; i < temp_r_float.cols; i++)
+    for (int i = 0; i < gray_template_float.cols; i++)
     {
-        for (int j = 0; j < temp_r_float.rows; j++)
+        for (int j = 0; j < gray_template_float.rows; j++)
         {
             //printf("j:%d,i:%d,temp_r_float.cols:%d\n", j, i, temp_r_float.cols);
-            h_template[j*temp_r_float.cols+i] = temp_r_float.at<float>(i,j);
+            h_template[j*gray_template_float.cols+i] = gray_template_float.at<float>(i,j);
+            //printf("j:%d,i%d,%.2f\t", j,i,gray_template_float.at<float>(i,j));
         }
     }
-    for (int i = 0; i < img_r_float.cols; i++)
+    for (int i = 0; i < gray_img_float.cols; i++)
     {
-        for (int j = 0; j < img_r_float.rows; j++)
+        for (int j = 0; j < gray_img_float.rows; j++)
         {
-            h_image[j*img_r_float.cols+i] = img_r_float.at<float>(i,j);
+            h_image[j*gray_img_float.cols+i] = gray_img_float.at<float>(i,j);
         }
     }
     //printf("host memory done\n");
@@ -190,14 +177,14 @@ int main(int argc, char* argv[])
     errcode = clSetKernelArg(clKernel, 0, sizeof(cl_mem), (void *)&d_output);
     errcode = errcode = clSetKernelArg(clKernel, 1, sizeof(cl_mem), (void*)&d_inputImage);
     errcode = clSetKernelArg(clKernel, 2, sizeof(cl_mem), (void *)&d_templateImage);
-    errcode = clSetKernelArg(clKernel, 3, sizeof(int), (void *)&img_r_float.rows);
-    errcode = clSetKernelArg(clKernel, 4, sizeof(int), (void *)&img_r_float.cols);
+    errcode = clSetKernelArg(clKernel, 3, sizeof(int), (void *)&gray_img_float.rows);
+    errcode = clSetKernelArg(clKernel, 4, sizeof(int), (void *)&gray_img_float.cols);
     errcode = clSetKernelArg(clKernel, 5, sizeof(int), (void *)&template_half_height);
-    errcode = clSetKernelArg(clKernel, 6, sizeof(int), (void *)&temp_r_float.rows);
+    errcode = clSetKernelArg(clKernel, 6, sizeof(int), (void *)&gray_template_float.rows);
     errcode = clSetKernelArg(clKernel, 7, sizeof(int), (void *)&template_half_width);
-    errcode = clSetKernelArg(clKernel, 8, sizeof(int), (void *)&temp_r_float.cols);
+    errcode = clSetKernelArg(clKernel, 8, sizeof(int), (void *)&gray_template_float.cols);
     errcode = clSetKernelArg(clKernel, 9, sizeof(int), (void *)&template_size);
-    errcode = clSetKernelArg(clKernel, 10, sizeof(float), (void *)&temp_r_mean_float);
+    errcode = clSetKernelArg(clKernel, 10, sizeof(float), (void *)&temp_gray_mean);
     OpenCL_CheckError(errcode, "clSetKernelArg");
 
     // Launch OpenCL Kernel
@@ -217,13 +204,14 @@ int main(int argc, char* argv[])
     OpenCL_CheckError(errcode, "clEnqueueReadBuffer");
 
     // print some values
-    for (int i = 0; i < 100; i++)
+    
+    for (int i = 0; i < 1000; i++)
     {
         printf("%.2f\t", h_output[i]);
     }
     
     // Clean up
-    free(h_output);
+    //free(h_output);
     free(h_template);
     free(h_image);
     
@@ -235,7 +223,53 @@ int main(int argc, char* argv[])
     clReleaseKernel(clKernel);
     clReleaseProgram(clProgram);
     clReleaseCommandQueue(clCommandQueue);
+    // radix sort
+    // Create a compute context
+     if(!(clContext = clCreateContext(0, 1, &device_id, NULL, NULL, &errcode)))
+         FATAL("Failed to create a compute context!",errcode);
+     //Create a command-queue
+     clCommandQueue = clCreateCommandQueue(clContext, device_id, CL_QUEUE_PROFILING_ENABLE, &errcode);
+     OpenCL_CheckError(errcode, "clCreateCommandQueue");
 
+    // convert float array into int array
+    // the size of unsorted list passed into should be multiple of (_GROUPS * _ITEMS)
 
+    int multiple = output_size / (_GROUPS * _ITEMS) + 1;
+    int sort_size = multiple * (_GROUPS * _ITEMS);
+    int *unsorted_ints = (int*)malloc(sort_size * sizeof(int));
+    int *sorted_ints = (int*)malloc(sort_size * sizeof(int));
+    for (int i = 0; i < output_size; i++)
+    {
+        unsorted_ints[i] = (int) h_output[i]*10;
+    }
+    // feed the extra slots with 0 s
+    for (int i = output_size; i < sort_size ; i++)
+    {
+        unsorted_ints[i] = 0;
+    }
+    // radix sort
+    static CLRadixSort rs(clContext, device_id, clCommandQueue, sort_size, unsorted_ints);
+    cout << "sorting "<< rs.nkeys <<" keys"<<endl<<endl;
+    rs.Sort();
+    rs.RecupGPU();
+    cout << rs.histo_time<<" s in the histograms"<<endl;
+    cout << rs.scan_time<<" s in the scanning"<<endl;
+    cout << rs.reorder_time<<" s in the reordering"<<endl;
+    cout << rs.transpose_time<<" s in the transposition"<<endl;
+    cout << rs.sort_time <<" s total GPU time (without memory transfers)"<<endl;
+    
+    rs.Check();
+    rs.CopyResults(sorted_ints, sort_size);
+    for (int i = sort_size-1; i > sort_size - 20; i--)
+    {
+        printf("%d\t", sorted_ints[i]);
+    }
+    
+    // get the index of the largest cross correlation value
+    // get the coordination
+    // clean up
+    free(h_output);
+    free(unsorted_ints);
+    free(sorted_ints);
     return 0;
 }

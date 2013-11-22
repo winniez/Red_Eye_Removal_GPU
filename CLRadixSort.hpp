@@ -69,6 +69,8 @@ public:
 
   // check that the sort is successfull (for debugging)
   void Check(void);
+    // copy ordered list back to caller
+    void CopyResults(int* sortedList, int length);
 
   // sort a set of particles (for debugging)
   void PICSorting(void);
