@@ -15,12 +15,12 @@ __kernel void template(__global float *d_output,
   int  ny             = num_pixels_y;
   int  nx             = num_pixels_x;
   int  knx            = template_width;
-  int  glosizex	      = get_global_size(0);
-  int  glosizey	      = get_global_size(1);
+  int  glosizex	      = get_local_size(0);
+  int  glosizey	      = get_local_size(1);
   int tx 	      = get_local_id(0);
   int ty 	      = get_local_id(1);
-  int blockx 	      = get_global_id(0);
-  int blocky 	      = get_global_id(1);
+  int blockx 	      = get_group_id(0);
+  int blocky 	      = get_group_id(1);
 
 int2 image_index_2d = (int2)( ( blockx* glosizex ) + tx, ( blocky * glosizey ) + ty );
   int  image_index_1d = ( nx * image_index_2d.y ) + image_index_2d.x;
@@ -62,13 +62,13 @@ int2 image_index_2d = (int2)( ( blockx* glosizex ) + tx, ( blocky * glosizey ) +
         int2 image_offset_index_2d         = (int2)( image_index_2d.x + x, image_index_2d.y + y );
         int2 image_offset_index_2d_clamped = (int2)( min( nx - 1, max( 0, image_offset_index_2d.x ) ), min( ny - 1, max( 0, image_offset_index_2d.y ) ) );
         int  image_offset_index_1d_clamped = ( nx * image_offset_index_2d_clamped.y ) + image_offset_index_2d_clamped.x;
-        unsigned char image_offset_value = d_inputImage[ image_offset_index_1d_clamped ];
-        float image_diff = (float)image_offset_value - image_mean;
+        float image_offset_value = d_inputImage[ image_offset_index_1d_clamped ];
+        float image_diff = image_offset_value - image_mean;
 
         int2 template_index_2d = (int2)( x + template_half_width, y + template_half_height );
         int  template_index_1d = ( knx * template_index_2d.y ) + template_index_2d.x;
 
-        unsigned char template_value = d_templateImage[ template_index_1d ];
+        float template_value = d_templateImage[ template_index_1d ];
         float template_diff  = template_value - template_mean;
 
         float image_template_diff_product = image_offset_value   * template_diff;
