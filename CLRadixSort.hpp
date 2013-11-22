@@ -48,7 +48,7 @@ friend ostream &operator<<(ostream &os, CLRadixSort &r);
 public:
   CLRadixSort(cl_context Context,
 	      cl_device_id NumDevice,
-	      cl_command_queue CommandQueue);
+	      cl_command_queue CommandQueue, int input_size, int* input_array );
   
   CLRadixSort() {};
   ~CLRadixSort();

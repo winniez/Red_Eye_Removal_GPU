@@ -14,17 +14,18 @@ using namespace std;
 
 CLRadixSort::CLRadixSort(cl_context GPUContext,
 			 cl_device_id dev,
-			 cl_command_queue CommandQue) :
+			 cl_command_queue CommandQue,
+              int input_size, 
+              int *input_array) :
   Context(GPUContext),
   NumDevice(dev),
-  CommandQueue(CommandQue),
-  nkeys(_N)
+  CommandQueue(CommandQue)
 {
-
+    nkeys = input_size;
   nkeys_rounded=nkeys;
   // check some conditions
   assert(_TOTALBITS % _BITS == 0);
-  assert(_N % (_GROUPS * _ITEMS) == 0);
+  assert(input_size % (_GROUPS * _ITEMS) == 0);
   assert( (_GROUPS * _ITEMS * _RADIX) % _HISTOSPLIT == 0);
     assert(pow(2,(int) log2(_GROUPS)) == _GROUPS);
   assert(pow(2,(int) log2(_ITEMS)) == _ITEMS);
@@ -103,15 +104,22 @@ CLRadixSort::CLRadixSort(cl_context GPUContext,
 
   cout << "Construct the random list"<<endl;
   // construction of a random list
+  /*
   uint maxint=_MAXINT;
   assert(_MAXINT != 0);
   for(uint i = 0; i < _N; i++){
     h_Keys[i] = ((rand())% maxint);
     h_checkKeys[i]=h_Keys[i];
   }
-
+    */
+  // initialize list to sort
+  for (uint i = 0; i < input_size; i++)
+  {
+    h_Keys[i] = input_array[i];
+    h_checkKeys[i] = h_Keys[i];
+  }
   // construction of the initial permutation
-  for(uint i = 0; i < _N; i++){
+  for(uint i = 0; i < input_size; i++){
     h_Permut[i] = i;
   }
 
@@ -119,28 +127,28 @@ CLRadixSort::CLRadixSort(cl_context GPUContext,
   // copy on the GPU
   d_inKeys  = clCreateBuffer(Context,
 			     CL_MEM_READ_WRITE,
-			     sizeof(uint)* _N ,
+			     sizeof(uint)* input_size ,
 			     NULL,
 			     &err);
   assert(err == CL_SUCCESS);
 
   d_outKeys  = clCreateBuffer(Context,
 			      CL_MEM_READ_WRITE,
-			      sizeof(uint)* _N ,
+			      sizeof(uint)* input_size ,
 			      NULL,
 			      &err);
   assert(err == CL_SUCCESS);
 
   d_inPermut  = clCreateBuffer(Context,
 			       CL_MEM_READ_WRITE,
-			       sizeof(uint)* _N ,
+			       sizeof(uint)* input_size ,
 			       NULL,
 			       &err);
   assert(err == CL_SUCCESS);
 
   d_outPermut  = clCreateBuffer(Context,
 				CL_MEM_READ_WRITE,
-				sizeof(uint)* _N ,
+				sizeof(uint)* input_size ,
 				NULL,
 				&err);
   assert(err == CL_SUCCESS);
@@ -431,7 +439,7 @@ void CLRadixSort::Check(){
   // first see if the final list is ordered
   for(uint i=0;i<nkeys-1;i++){
     if (!(h_Keys[i] <= h_Keys[i+1])) {
-      cout <<"erreur tri "<< i<<" "<<h_Keys[i]<<" ,"<<i+1<<" "<<h_Keys[i+1]<<endl;
+      cout <<"error "<< i<<" "<<h_Keys[i]<<" ,"<<i+1<<" "<<h_Keys[i+1]<<endl;
     }
     assert(h_Keys[i] <= h_Keys[i+1]);
   }
@@ -459,7 +467,7 @@ void CLRadixSort::PICSorting(void){
 
   cout << "Init particles"<<endl;
   // use van der Corput sequences for initializations
-  for(int j=0;j<_N;j++){
+  for(int j=0;j<nkeys;j++){
     xp[j]=corput(j,2,3);
     yp[j]=corput(j,3,5);
     up[j]=corput(j,2,5);
@@ -495,7 +503,7 @@ void CLRadixSort::PICSorting(void){
 
   cout << "Reorder particles"<<endl;
 
-  for(int j=0;j<_N;j++){
+  for(int j=0;j<nkeys;j++){
     xs[j]=xp[h_Permut[j]];
     ys[j]=yp[h_Permut[j]];
     us[j]=up[h_Permut[j]];
@@ -504,7 +512,7 @@ void CLRadixSort::PICSorting(void){
 
   // move particles
   float delta=0.1;
-  for(int j=0;j<_N;j++){
+  for(int j=0;j<nkeys;j++){
     xp[j]=xs[j]+delta*us[j]/32;
     xp[j]=xp[j]-floor(xp[j]);
     yp[j]=ys[j]+delta*vs[j]/32;
@@ -567,7 +575,7 @@ void CLRadixSort::RecupGPU(void){
   status = clEnqueueReadBuffer( CommandQueue,
 				d_inKeys,
 				CL_TRUE, 0, 
-				sizeof(uint)  * _N,
+				sizeof(uint)  * nkeys,
 				h_Keys,
 				0, NULL, NULL ); 
  
@@ -577,7 +585,7 @@ void CLRadixSort::RecupGPU(void){
   status = clEnqueueReadBuffer( CommandQueue,
 				d_inPermut,
 				CL_TRUE, 0, 
-				sizeof(uint)  * _N,
+				sizeof(uint)  * nkeys,
 				h_Permut,
 				0, NULL, NULL ); 
  
@@ -611,7 +619,7 @@ void CLRadixSort::Host2GPU(void){
   status = clEnqueueWriteBuffer( CommandQueue,
 				d_inKeys,
 				CL_TRUE, 0, 
-				sizeof(uint)  * _N,
+				sizeof(uint)  * nkeys,
 				h_Keys,
 				0, NULL, NULL ); 
  
@@ -621,7 +629,7 @@ void CLRadixSort::Host2GPU(void){
   status = clEnqueueWriteBuffer( CommandQueue,
 				d_inPermut,
 				CL_TRUE, 0, 
-				sizeof(uint)  * _N,
+				sizeof(uint)  * nkeys,
 				h_Permut,
 				0, NULL, NULL ); 
  
