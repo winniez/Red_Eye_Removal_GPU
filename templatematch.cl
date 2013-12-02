@@ -22,8 +22,9 @@ __kernel void template(__global float *d_output,
   int blockx 	      = get_group_id(0);
   int blocky 	      = get_group_id(1);
 
-int2 image_index_2d = (int2)( ( blockx* glosizex ) + tx, ( blocky * glosizey ) + ty );
-  int  image_index_1d = ( nx * image_index_2d.y ) + image_index_2d.x;
+//int2 image_index_2d = (int2)( ( blockx* glosizex ) + tx, ( blocky * glosizey ) + ty );
+    int2 image_index_2d = (int2) (get_global_id(0), get_global_id(1));
+    int  image_index_1d = ( nx * image_index_2d.y ) + image_index_2d.x;
 
   if ( image_index_2d.x < nx && image_index_2d.y < ny )
   {
@@ -94,6 +95,7 @@ int2 image_index_2d = (int2)( ( blockx* glosizex ) + tx, ( blocky * glosizey ) +
 
     d_output[ image_index_1d ] = result_value;
   }
+  //d_output[get_global_id(0)] = get_global_id(0);
 }
 
 

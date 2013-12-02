@@ -21,7 +21,7 @@
 #include <CL/opencl.h>
 #include "util.h"
 
-#define BLOCKSIZE 16
+#define BLOCKSIZE 32
 #define GLOBALSIZE 1024
 
 using namespace cv;
@@ -209,14 +209,16 @@ int main(int argc, char* argv[])
     OpenCL_CheckError(errcode, "clEnqueueNDRangeKernel");
 
     // Retrieve result from device
-    errcode = clEnqueueReadBuffer(clCommandQueue, d_output, CL_TRUE, 0,     output_size, h_output, 0, NULL, NULL);
+    errcode = clEnqueueReadBuffer(clCommandQueue, d_output, CL_TRUE, 0, output_size*sizeof(float), h_output, 0, NULL, NULL);
     OpenCL_CheckError(errcode, "clEnqueueReadBuffer");
 
     // print some values
     
-    for (int i = 0; i < output_size; i++)
+    //for (int i = 0; i < output_size; i++)
+    for (int i = 55100; i< 55500; i++)
+    //for (int i = 0; i < 1000; i++)
     {
-        if (h_output[i] > 0.4)
+        //if (h_output[i] > 0.4)
         {
             printf("%.2f\t", h_output[i]);
         }
@@ -285,10 +287,60 @@ int main(int argc, char* argv[])
     rs.CopyResults(sorted_ints, sort_size);
     for (int i = sort_size-1; i > sort_size-20; i--)
     {
-        printf("%d\t", sorted_ints[i]);
+        //printf("%d\t", sorted_ints[i]);
     }
     
     // get the index of the largest cross correlation value
+    int candidate1, candidate2, candidate1_x, candidate1_y, candidate2_x, candidate2_y;
+    candidate1 = sorted_ints[sort_size - 1];
+    for (int i = 0; i < output_size; i++)
+    {
+        if (unsorted_ints[i] == candidate1)
+        {
+            candidate1_x = i % gray_img_float.cols;
+            candidate1_y = (int) (i / gray_img_float.cols);
+        }
+    }
+    printf("\ncandidate 1: %d, at %d, %d\n", candidate1, candidate1_x, candidate1_y);
+    int top = sort_size - 2;
+    while (sort_size > 0)
+    {
+        candidate2 = sorted_ints[top];
+        for (int i = 0; i < output_size; i++)
+        {
+            if (unsorted_ints[i] == candidate2)
+            {
+                candidate2_x = i % gray_img_float.cols;
+                candidate2_y = (int) (i / gray_img_float.cols);
+            }
+        }
+        if (abs(candidate2_x - candidate1_x) + 
+            abs(candidate2_y - candidate1_y) > 20)
+        {
+            break;
+        }
+
+        top--;
+    }
+    printf("candidate 2: %d, at %d, %d\n", candidate2, candidate2_x, candidate2_y);
+    
+    // remove redness
+    for (int i = candidate1_x - template_half_width; i < candidate1_x + template_half_width; i++)
+    {
+        for (int j = candidate1_y - template_half_height; j < candidate1_y + template_half_height; j++)
+        {
+            inputImage.at<Vec3b>(i, j)[2] = (inputImage.at<Vec3b>(i, j)[0] + inputImage.at<Vec3b>(i, j)[1])/2;
+        }
+    }
+    for (int i = candidate2_x - template_half_width; i < candidate2_x + template_half_width; i++)
+    {
+        for (int j = candidate2_y - template_half_height; j < candidate2_y + template_half_height; j++)
+        {
+            inputImage.at<Vec3b>(i, j)[2] = (inputImage.at<Vec3b>(i, j)[0] + inputImage.at<Vec3b>(i, j)[1])/2;
+        }
+    }
+    // write
+    imwrite("newresult.jpg", inputImage);
     // get the coordination
     // clean up
     free(h_output);
