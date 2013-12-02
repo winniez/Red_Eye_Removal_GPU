@@ -20,7 +20,7 @@
 
 #include <CL/opencl.h>
 #include "util.h"
-
+#include "candidate.h"
 #define BLOCKSIZE 32
 #define GLOBALSIZE 1024
 
@@ -212,18 +212,6 @@ int main(int argc, char* argv[])
     errcode = clEnqueueReadBuffer(clCommandQueue, d_output, CL_TRUE, 0, output_size*sizeof(float), h_output, 0, NULL, NULL);
     OpenCL_CheckError(errcode, "clEnqueueReadBuffer");
 
-    // print some values
-    
-    //for (int i = 0; i < output_size; i++)
-    for (int i = 55100; i< 55500; i++)
-    //for (int i = 0; i < 1000; i++)
-    {
-        //if (h_output[i] > 0.4)
-        {
-            printf("%.2f\t", h_output[i]);
-        }
-    }
-    
     // Clean up
     //free(h_output);
     free(h_template);
@@ -262,17 +250,7 @@ int main(int argc, char* argv[])
     {
         unsorted_ints[i] = 0;
     }
-    // print unsorted_ints
-    /*
-    printf("\n\n");
-    for (int i = 0; i <sort_size; i++)
-    {
-        if (unsorted_ints[i]>10)
-        {
-            printf("%d\t", unsorted_ints[i]);
-        }
-    }*/
-    // radix sort
+    // sorting
     static CLRadixSort rs(clContext, device_id, clCommandQueue, sort_size, unsorted_ints);
     cout << "sorting "<< rs.nkeys <<" keys"<<endl<<endl;
     rs.Sort();
@@ -285,12 +263,14 @@ int main(int argc, char* argv[])
     
     rs.Check();
     rs.CopyResults(sorted_ints, sort_size);
-    for (int i = sort_size-1; i > sort_size-20; i--)
+    for (int i = sort_size-1; i > sort_size-50; i--)
     {
-        //printf("%d\t", sorted_ints[i]);
+        printf("%d\t", sorted_ints[i]);
     }
-    
+   
+    find_match_candidates(sorted_ints, unsorted_ints, sort_size, output_size, gray_img_float.cols, gray_img_float.rows);
     // get the index of the largest cross correlation value
+    /*
     int candidate1, candidate2, candidate1_x, candidate1_y, candidate2_x, candidate2_y;
     candidate1 = sorted_ints[sort_size - 1];
     for (int i = 0; i < output_size; i++)
@@ -341,6 +321,7 @@ int main(int argc, char* argv[])
     }
     // write
     imwrite("newresult.jpg", inputImage);
+    */
     // get the coordination
     // clean up
     free(h_output);

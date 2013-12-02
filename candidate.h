@@ -11,6 +11,8 @@ public:
     int cox;
     int coy;
     int score;
+    int totalScore;
+    int avgScore;
     int clusterSize;
     
     Candidate(int x, int y, int s)
@@ -18,6 +20,8 @@ public:
         cox = x;
         coy = y;
         score = s;
+        totalScore = s;
+        avgScore = 0;
         clusterSize = 1;
     }
     Candidate()
@@ -25,6 +29,8 @@ public:
         cox = 0;
         coy = 0;
         score = 0;
+        totalScore = 0;
+        avgScore = 0;
         clusterSize = 1;
     }
     ~Candidate(){}
@@ -61,7 +67,7 @@ void find_match_candidates(int* sortedScores, int* unsortedScores, int sortSize,
     // terminate condition
     
     int k = sortSize - 2;
-    while (sortedScores[k] > (int)(0.8 * sortedScores[size - 1]))
+    while (sortedScores[k] > (int)(0.9 * sortedScores[size - 1]))
     {
         tmps = sortedScores[k];
         for (int i = 0; i < size; i++)
@@ -82,6 +88,7 @@ void find_match_candidates(int* sortedScores, int* unsortedScores, int sortSize,
             if (dist < 33)
             {
                 candidates[j].clusterSize++;
+                candidates[j].totalScore += tmps;
                 flag = 1;
                 break;
             }
@@ -96,7 +103,8 @@ void find_match_candidates(int* sortedScores, int* unsortedScores, int sortSize,
     printf("candidate cluster num:%d\n", (int)candidates.size());
     for (int i = 0; i < candidates.size(); i++)
     {
-        printf("candidate %d: X %d, Y %d, score %d, num %d\n", i, candidates[i].cox, candidates[i].coy, candidates[i].score, candidates[i].clusterSize);
+        candidates[i].avgScore = (int) (candidates[i].totalScore / candidates[i].clusterSize);
+        printf("candidate %d: X %d, Y %d, score %d, avgScore %d, num %d\n", i, candidates[i].cox, candidates[i].coy, candidates[i].score, candidates[i].avgScore, candidates[i].clusterSize);
     }
 
 }
