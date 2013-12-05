@@ -38,7 +38,7 @@ public:
 };
 
 
-void find_match_candidates(int* sortedScores, int* unsortedScores, int sortSize, int size, int cols, int rows)
+vector<Candidate> find_match_candidates(int* sortedScores, int* unsortedScores, int sortSize, int size, int cols, int rows)
 {
     vector<Candidate> final;
     int visited[size];
@@ -67,7 +67,7 @@ void find_match_candidates(int* sortedScores, int* unsortedScores, int sortSize,
     // terminate condition
     
     int k = sortSize - 2;
-    while (sortedScores[k] > (int)(0.9 * sortedScores[size - 1]))
+    while (sortedScores[k] > (int)(0.4 * sortedScores[sortSize - 1]))
     {
         tmps = sortedScores[k];
         for (int i = 0; i < size; i++)
@@ -85,7 +85,7 @@ void find_match_candidates(int* sortedScores, int* unsortedScores, int sortSize,
         for (int j = 0; j < candidates.size(); j++)
         {
             dist = abs(candidates[j].cox - tmpx) + abs(candidates[j].coy - tmpy);
-            if (dist < 33)
+            if (dist < 20)
             {
                 candidates[j].clusterSize++;
                 candidates[j].totalScore += tmps;
@@ -106,6 +106,7 @@ void find_match_candidates(int* sortedScores, int* unsortedScores, int sortSize,
         candidates[i].avgScore = (int) (candidates[i].totalScore / candidates[i].clusterSize);
         printf("candidate %d: X %d, Y %d, score %d, avgScore %d, num %d\n", i, candidates[i].cox, candidates[i].coy, candidates[i].score, candidates[i].avgScore, candidates[i].clusterSize);
     }
+    return candidates;
 
 }
 

@@ -70,52 +70,70 @@ int main(int argc, char* argv[])
     split(templateImage, template_bgr);
 
     // convert to float mat
-    Mat img_r_float; 
-    Mat temp_r_float;
+    Mat img_r_float, img_g_float, img_b_float;
+    Mat temp_r_float, temp_g_float, temp_b_float;
+    image_bgr[0].convertTo(img_b_float, CV_32FC1);
+    template_bgr[0].convertTo(temp_b_float, CV_32FC1);
+    image_bgr[1].convertTo(img_g_float, CV_32FC1);
+    template_bgr[1].convertTo(temp_g_float, CV_32FC1);
     image_bgr[2].convertTo(img_r_float, CV_32FC1);
     template_bgr[2].convertTo(temp_r_float, CV_32FC1);
 
     // compute mean of template_r_float
-    //Scalar temp_r_mean = mean(temp_r_float);
-    Scalar temp_gray_mean = mean(gray_template_float);
-    float temp_gray_mean_float = temp_gray_mean.val[0];
-    //float temp_r_mean_float = temp_r_mean.val[0];
-    printf("temp_gray_mean_float: %f\n", temp_gray_mean_float);
-
-
-    unsigned int output_size = img_r_float.rows * img_r_float.cols;
+    //Scalar temp_gray_mean = mean(gray_template_float);
+    //float temp_gray_mean_float = temp_gray_mean.val[0];
+    Scalar temp_b_mean = mean(temp_b_float);
+    float temp_b_mean_float = temp_b_mean.val[0];
+    Scalar temp_g_mean = mean(temp_g_float);
+    float temp_g_mean_float = temp_g_mean.val[0];
+    Scalar temp_r_mean = mean(temp_r_float);
+    float temp_r_mean_float = temp_r_mean.val[0];
+    
+    printf("temp_mean_float b: %f, g: %f, r: %f\n", temp_b_mean_float, temp_g_mean_float, temp_r_mean_float);
+    unsigned int img_width = img_r_float.cols;
+    unsigned int img_height = img_r_float.rows;
+    unsigned int temp_width = temp_r_float.cols;
+    unsigned int temp_height = temp_r_float.rows;
+    unsigned int output_size = img_width * img_height;
     unsigned int input_size = output_size;
-    unsigned int template_size = temp_r_float.rows * temp_r_float.cols;
-    unsigned int template_half_height = templateImage.rows/2;
-    unsigned int template_half_width = templateImage.cols/2;
+    unsigned int template_size = temp_width * temp_height;
+    unsigned int template_half_height = temp_height/2;
+    unsigned int template_half_width = temp_width/2;
 
     // allocate host memory and convert image red channel into 1d array
     printf("input_size: %d, template_size: %d\n", input_size, template_size);
-    float* h_output = (float*)malloc(input_size * sizeof(float));
-    float* h_image = (float*) malloc(input_size * sizeof(float));
-    float *h_template = (float*)malloc(template_size * sizeof(float));
-    
-    for (int i = 0; i < gray_template_float.cols; i++)
+    float* h_r_output = (float*)malloc(input_size * sizeof(float));
+    float* h_g_output = (float*)malloc(input_size * sizeof(float));
+    float* h_b_output = (float*)malloc(input_size * sizeof(float));
+    float* h_r_image = (float*) malloc(input_size * sizeof(float));
+    float* h_g_image = (float*) malloc(input_size * sizeof(float));
+    float* h_b_image = (float*) malloc(input_size * sizeof(float));
+    float *h_r_template = (float*)malloc(template_size * sizeof(float));
+    float *h_g_template = (float*)malloc(template_size * sizeof(float));
+    float *h_b_template = (float*)malloc(template_size * sizeof(float));
+    float *h_response = (float*)malloc(input_size * sizeof(float));
+    for (int i = 0; i < temp_r_float.cols; i++)
     {
-        for (int j = 0; j < gray_template_float.rows; j++)
+        for (int j = 0; j < temp_r_float.rows; j++)
         {
-            //printf("j:%d,i:%d,temp_r_float.cols:%d\n", j, i, temp_r_float.cols);
-            h_template[j*gray_template_float.cols+i] = gray_template_float.at<float>(i,j);
-            //printf("j:%d,i%d,%.2f\t", j,i, h_template[j*gray_template_float.cols+i]);
+            h_r_template[j*temp_r_float.cols+i] = temp_r_float.at<float>(j,i);
+            h_b_template[j*temp_r_float.cols+i] = temp_b_float.at<float>(j,i);
+            h_g_template[j*temp_r_float.cols+i] = temp_g_float.at<float>(j,i);
         }
     }
-    for (int i = 0; i < gray_img_float.cols; i++)
+    for (int i = 0; i < img_r_float.cols; i++)
     {
-        for (int j = 0; j < gray_img_float.rows; j++)
+        for (int j = 0; j < img_r_float.rows; j++)
         {
-            h_image[j*gray_img_float.cols+i] = gray_img_float.at<float>(i,j);
-            //printf("j:%d,i:%d,%.2f\t", j,i, h_image[j*gray_img_float.cols+i]);
+            h_r_image[j*img_r_float.cols+i] = img_r_float.at<float>(j,i);
+            h_g_image[j*img_r_float.cols+i] = img_g_float.at<float>(j,i);
+            h_b_image[j*img_r_float.cols+i] = img_b_float.at<float>(j,i);
         }
     }
     //printf("host memory done\n");
     // opencl intializations
     cl_program clProgram;
-    cl_kernel clKernel;
+    cl_kernel clKernel, clKernel2;
     cl_int errcode;
     cl_platform_id platform;
     cl_context clContext;
@@ -144,17 +162,27 @@ int main(int argc, char* argv[])
     OpenCL_CheckError(errcode, "clCreateCommandQueue");
 
     // Create memory buffers
-    cl_mem d_inputImage;
-    cl_mem d_output;
-    cl_mem d_templateImage;
+    cl_mem d_r_inputImage, d_b_inputImage, d_g_inputImage;
+    cl_mem d_r_output;
+    cl_mem d_b_output;
+    cl_mem d_g_output;
+    cl_mem d_r_templateImage;
+    cl_mem d_g_templateImage;
+    cl_mem d_b_templateImage;
+    cl_mem d_response;
     
     // set up device memory
-    d_inputImage = clCreateBuffer(clContext, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, input_size*sizeof(float), h_image, &errcode);
-
-    d_templateImage = clCreateBuffer(clContext, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, template_size * sizeof(float), h_template, &errcode);
-    d_output = clCreateBuffer(clContext, CL_MEM_READ_WRITE, output_size * sizeof(float), NULL, &errcode);
-
-   //  Create program and kernel
+    d_r_inputImage = clCreateBuffer(clContext, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, input_size*sizeof(float), h_r_image, &errcode);
+    d_g_inputImage = clCreateBuffer(clContext, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, input_size*sizeof(float), h_g_image, &errcode);
+    d_b_inputImage = clCreateBuffer(clContext, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, input_size*sizeof(float), h_b_image, &errcode);
+    d_r_templateImage = clCreateBuffer(clContext, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, template_size * sizeof(float), h_r_template, &errcode);
+    d_g_templateImage = clCreateBuffer(clContext, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, template_size * sizeof(float), h_g_template, &errcode);
+    d_b_templateImage = clCreateBuffer(clContext, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, template_size * sizeof(float), h_b_template, &errcode);
+    d_r_output = clCreateBuffer(clContext, CL_MEM_READ_WRITE, output_size * sizeof(float), NULL, &errcode);
+    d_g_output = clCreateBuffer(clContext, CL_MEM_READ_WRITE, output_size * sizeof(float), NULL, &errcode);
+    d_b_output = clCreateBuffer(clContext, CL_MEM_READ_WRITE, output_size * sizeof(float), NULL, &errcode);
+    d_response = clCreateBuffer(clContext, CL_MEM_READ_WRITE, output_size * sizeof(float), NULL, &errcode);
+    //  Create program and kernel
    // Load Program source
    char *source = OpenCL_LoadProgramSource("templatematch.cl");
    if(!source)
@@ -181,18 +209,18 @@ int main(int argc, char* argv[])
    clKernel = clCreateKernel(clProgram, "template", &errcode);
    OpenCL_CheckError(errcode, "clCreateKernel"); 
     size_t localSize = template_size;
-    // set Kernels
-    errcode = clSetKernelArg(clKernel, 0, sizeof(cl_mem), (void *)&d_output);
-    errcode = errcode = clSetKernelArg(clKernel, 1, sizeof(cl_mem), (void*)&d_inputImage);
-    errcode = clSetKernelArg(clKernel, 2, sizeof(cl_mem), (void *)&d_templateImage);
-    errcode = clSetKernelArg(clKernel, 3, sizeof(int), (void *)&gray_img_float.rows);
-    errcode = clSetKernelArg(clKernel, 4, sizeof(int), (void *)&gray_img_float.cols);
+    // set Kernels for red channel
+    errcode = clSetKernelArg(clKernel, 0, sizeof(cl_mem), (void *)&d_r_output);
+    errcode = clSetKernelArg(clKernel, 1, sizeof(cl_mem), (void*)&d_r_inputImage);
+    errcode = clSetKernelArg(clKernel, 2, sizeof(cl_mem), (void *)&d_r_templateImage);
+    errcode = clSetKernelArg(clKernel, 3, sizeof(int), (void *)&img_height);
+    errcode = clSetKernelArg(clKernel, 4, sizeof(int), (void *)&img_width);
     errcode = clSetKernelArg(clKernel, 5, sizeof(int), (void *)&template_half_height);
-    errcode = clSetKernelArg(clKernel, 6, sizeof(int), (void *)&gray_template_float.rows);
+    errcode = clSetKernelArg(clKernel, 6, sizeof(int), (void *)&temp_height);
     errcode = clSetKernelArg(clKernel, 7, sizeof(int), (void *)&template_half_width);
-    errcode = clSetKernelArg(clKernel, 8, sizeof(int), (void *)&gray_template_float.cols);
+    errcode = clSetKernelArg(clKernel, 8, sizeof(int), (void *)&temp_width);
     errcode = clSetKernelArg(clKernel, 9, sizeof(int), (void *)&template_size);
-    errcode = clSetKernelArg(clKernel, 10, sizeof(float), (void *)&temp_gray_mean_float);
+    errcode = clSetKernelArg(clKernel, 10, sizeof(float), (void *)&temp_r_mean_float);
     //errcode = clSetKernelArg(clKernel, 11, localSize, NULL);
     OpenCL_CheckError(errcode, "clSetKernelArg");
 
@@ -203,26 +231,104 @@ int main(int argc, char* argv[])
     globalWorkSize[0] = GLOBALSIZE;
     globalWorkSize[1] = GLOBALSIZE;
     
-    cl_event event;
-    errcode = clEnqueueNDRangeKernel(clCommandQueue, clKernel, 2, NULL,     globalWorkSize, localWorkSize, 0, NULL, &event);
-    errcode =  clWaitForEvents(1, &event);
+    cl_event event_r;
+    errcode = clEnqueueNDRangeKernel(clCommandQueue, clKernel, 2, NULL,     globalWorkSize, localWorkSize, 0, NULL, &event_r);
+    errcode =  clWaitForEvents(1, &event_r);
     OpenCL_CheckError(errcode, "clEnqueueNDRangeKernel");
 
     // Retrieve result from device
-    errcode = clEnqueueReadBuffer(clCommandQueue, d_output, CL_TRUE, 0, output_size*sizeof(float), h_output, 0, NULL, NULL);
+    errcode = clEnqueueReadBuffer(clCommandQueue, d_r_output, CL_TRUE, 0, output_size*sizeof(float), h_r_output, 0, NULL, NULL);
+    OpenCL_CheckError(errcode, "clEnqueueReadBuffer");
+    // set Kernels for green channel
+    errcode = clSetKernelArg(clKernel, 0, sizeof(cl_mem), (void *)&d_g_output); 
+    errcode = clSetKernelArg(clKernel, 1, sizeof(cl_mem), (void*)&d_g_inputImage);   
+    errcode = clSetKernelArg(clKernel, 2, sizeof(cl_mem), (void *)&d_g_templateImage);
+    errcode = clSetKernelArg(clKernel, 3, sizeof(int), (void *)&img_height);
+    errcode = clSetKernelArg(clKernel, 4, sizeof(int), (void *)&img_width);
+    errcode = clSetKernelArg(clKernel, 5, sizeof(int), (void *)&template_half_height);
+    errcode = clSetKernelArg(clKernel, 6, sizeof(int), (void *)&temp_height);
+    errcode = clSetKernelArg(clKernel, 7, sizeof(int), (void *)&template_half_width);
+    errcode = clSetKernelArg(clKernel, 8, sizeof(int), (void *)&temp_width);
+    errcode = clSetKernelArg(clKernel, 9, sizeof(int), (void *)&template_size);
+    errcode = clSetKernelArg(clKernel, 10, sizeof(float), (void *)&temp_g_mean_float);
+    //errcode = clSetKernelArg(clKernel, 11, localSize, NULL);
+    OpenCL_CheckError(errcode, "clSetKernelArg");
+
+    // Launch OpenCL Kernel
+    cl_event event_g;
+    errcode = clEnqueueNDRangeKernel(clCommandQueue, clKernel, 2, NULL,     globalWorkSize, localWorkSize, 0, NULL, &event_g);
+    errcode =  clWaitForEvents(1, &event_g);
+    OpenCL_CheckError(errcode, "clEnqueueNDRangeKernel");
+
+    // Retrieve result from device
+    errcode = clEnqueueReadBuffer(clCommandQueue, d_g_output, CL_TRUE, 0, output_size*sizeof(float), h_g_output, 0, NULL, NULL);
     OpenCL_CheckError(errcode, "clEnqueueReadBuffer");
 
-    // Clean up
-    //free(h_output);
-    free(h_template);
-    free(h_image);
+// set Kernels for blue channel
+    errcode = clSetKernelArg(clKernel, 0, sizeof(cl_mem), (void *)&d_b_output);
+    errcode = clSetKernelArg(clKernel, 1, sizeof(cl_mem), (void*)&d_b_inputImage);
+    errcode = clSetKernelArg(clKernel, 2, sizeof(cl_mem), (void *)&d_b_templateImage);
+    errcode = clSetKernelArg(clKernel, 3, sizeof(int), (void *)&img_height);
+    errcode = clSetKernelArg(clKernel, 4, sizeof(int), (void *)&img_width);
+    errcode = clSetKernelArg(clKernel, 5, sizeof(int), (void *)&template_half_height);
+    errcode = clSetKernelArg(clKernel, 6, sizeof(int), (void *)&temp_height);
+   
+     errcode = clSetKernelArg(clKernel, 7, sizeof(int), (void *)&template_half_width);
+    errcode = clSetKernelArg(clKernel, 8, sizeof(int), (void *)&temp_width);
+    errcode = clSetKernelArg(clKernel, 9, sizeof(int), (void *)&template_size);
+    errcode = clSetKernelArg(clKernel, 10, sizeof(float), (void *)&temp_b_mean_float);
+    //errcode = clSetKernelArg(clKernel, 11, localSize, NULL);
+    OpenCL_CheckError(errcode, "clSetKernelArg");
+
+    // Launch OpenCL Kernel
+    cl_event event_b;
+    errcode = clEnqueueNDRangeKernel(clCommandQueue, clKernel, 2, NULL,     globalWorkSize, localWorkSize, 0, NULL, &event_b);
+    errcode =  clWaitForEvents(1, &event_b);
+    OpenCL_CheckError(errcode, "clEnqueueNDRangeKernel");
+
+    // Retrieve result from device
+    errcode = clEnqueueReadBuffer(clCommandQueue, d_b_output, CL_TRUE, 0, output_size*sizeof(float), h_b_output, 0, NULL, NULL);
+    OpenCL_CheckError(errcode, "clEnqueueReadBuffer");
+    clReleaseKernel(clKernel);
     
-    clReleaseMemObject(d_output);
-    clReleaseMemObject(d_inputImage);
-    clReleaseMemObject(d_templateImage);
+    clKernel2 =  clCreateKernel(clProgram, "combined_response", &errcode);
+    OpenCL_CheckError(errcode, "clCreateKernel");
+    // set Kernels for combined responese
+    errcode = clSetKernelArg(clKernel2, 0, sizeof(cl_mem), (void *)&d_response);
+    errcode = clSetKernelArg(clKernel2, 1, sizeof(cl_mem), (void *)&d_r_output );
+    errcode = clSetKernelArg(clKernel2, 2, sizeof(cl_mem), (void *)&d_g_output);
+    errcode = clSetKernelArg(clKernel2, 3, sizeof(cl_mem), (void *)&d_b_output);
+    errcode = clSetKernelArg(clKernel2, 4, sizeof(int), (void *)&img_height);
+    errcode = clSetKernelArg(clKernel2, 5, sizeof(int), (void *)&img_width);
+    OpenCL_CheckError(errcode, "clSetKernelArg");
+    cl_event event_combine;
+    errcode = clEnqueueNDRangeKernel(clCommandQueue, clKernel2, 2, NULL,     globalWorkSize, localWorkSize, 0, NULL, &event_combine);
+    errcode =  clWaitForEvents(1, &event_combine);
+    OpenCL_CheckError(errcode, "clEnqueueNDRangeKernel");
+    // Retrieve result from device
+    errcode = clEnqueueReadBuffer(clCommandQueue, d_response, CL_TRUE, 0, output_size*sizeof(float), h_response, 0, NULL, NULL);
+    OpenCL_CheckError(errcode, "clEnqueueReadBuffer");
+//Clean up
+    //free(h_output);
+    free(h_r_template);
+    free(h_b_template);
+    free(h_g_template);
+    free(h_r_image);
+    free(h_g_image);
+    free(h_b_image);
+    
+    clReleaseMemObject(d_r_output);
+    clReleaseMemObject(d_r_inputImage);
+    clReleaseMemObject(d_r_templateImage);
+    clReleaseMemObject(d_g_output);
+    clReleaseMemObject(d_g_inputImage);
+    clReleaseMemObject(d_g_templateImage);
+    clReleaseMemObject(d_b_output);
+    clReleaseMemObject(d_b_inputImage);
+    clReleaseMemObject(d_b_templateImage);
 
     clReleaseContext(clContext);
-    clReleaseKernel(clKernel);
+    clReleaseKernel(clKernel2);
     clReleaseProgram(clProgram);
     clReleaseCommandQueue(clCommandQueue);
     // radix sort
@@ -242,8 +348,8 @@ int main(int argc, char* argv[])
     int *sorted_ints = (int*)malloc(sort_size * sizeof(int));
     for (int i = 0; i < output_size; i++)
     {
-        if (h_output[i] < 0) unsorted_ints[i] = 0;
-        else unsorted_ints[i] = (int) (h_output[i]*1000);
+        if (h_response[i] < 0) unsorted_ints[i] = 0;// (int)(h_reponset[i]*(-1000));//0;
+        else unsorted_ints[i] = (int) (h_response[i]*1000000);
     }
     // feed the extra slots with 0 s
     for (int i = output_size; i < sort_size ; i++)
@@ -267,12 +373,15 @@ int main(int argc, char* argv[])
     {
         printf("%d\t", sorted_ints[i]);
     }
-   
-    find_match_candidates(sorted_ints, unsorted_ints, sort_size, output_size, gray_img_float.cols, gray_img_float.rows);
+    vector<Candidate> candidates = find_match_candidates(sorted_ints, unsorted_ints, sort_size, output_size, gray_img_float.cols, gray_img_float.rows);
     // get the index of the largest cross correlation value
-    /*
+    
     int candidate1, candidate2, candidate1_x, candidate1_y, candidate2_x, candidate2_y;
-    candidate1 = sorted_ints[sort_size - 1];
+    candidate1_x = candidates[0].cox;
+    candidate1_y = candidates[0].coy;
+    candidate2_x = candidates[1].cox;
+    candidate2_y = candidates[1].coy;
+    /*candidate1 = sorted_ints[sort_size - 1];
     for (int i = 0; i < output_size; i++)
     {
         if (unsorted_ints[i] == candidate1)
@@ -303,28 +412,29 @@ int main(int argc, char* argv[])
         top--;
     }
     printf("candidate 2: %d, at %d, %d\n", candidate2, candidate2_x, candidate2_y);
-    
+    */
     // remove redness
     for (int i = candidate1_x - template_half_width; i < candidate1_x + template_half_width; i++)
     {
         for (int j = candidate1_y - template_half_height; j < candidate1_y + template_half_height; j++)
         {
-            inputImage.at<Vec3b>(i, j)[2] = (inputImage.at<Vec3b>(i, j)[0] + inputImage.at<Vec3b>(i, j)[1])/2;
+            inputImage.at<Vec3b>(j, i)[2] = (inputImage.at<Vec3b>(j, i)[0] + inputImage.at<Vec3b>(j, i)[1])/2;
         }
     }
     for (int i = candidate2_x - template_half_width; i < candidate2_x + template_half_width; i++)
     {
         for (int j = candidate2_y - template_half_height; j < candidate2_y + template_half_height; j++)
         {
-            inputImage.at<Vec3b>(i, j)[2] = (inputImage.at<Vec3b>(i, j)[0] + inputImage.at<Vec3b>(i, j)[1])/2;
+            inputImage.at<Vec3b>(j, i)[2] = (inputImage.at<Vec3b>(j, i)[0] + inputImage.at<Vec3b>(j, i)[1])/2;
         }
     }
     // write
     imwrite("newresult.jpg", inputImage);
-    */
+    
     // get the coordination
     // clean up
-    free(h_output);
+    free(h_r_output);
+    free(h_g_output); free(h_b_output); free(h_response);
     free(unsorted_ints);
     free(sorted_ints);
     return 0;

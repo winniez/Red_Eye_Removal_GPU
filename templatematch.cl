@@ -1,3 +1,22 @@
+__kernel void combined_response(
+    __global float *d_response,
+    __global float *d_r_response,
+    __global float *d_g_response,
+    __global float *d_b_response,
+    int            num_pixels_y,
+    int            num_pixels_x)
+{
+    int  ny             = num_pixels_y;
+    int  nx             = num_pixels_x;
+    int2 image_index_2d = (int2) (get_global_id(0), get_global_id(1));
+    int  image_index_1d = ( nx * image_index_2d.y ) + image_index_2d.x;
+    if ( image_index_2d.x < nx && image_index_2d.y < ny )
+    {
+        d_response[ image_index_1d ] = d_r_response[ image_index_1d ] * d_g_response[ image_index_1d ] * d_b_response[ image_index_1d ];
+    }
+}
+
+
 __kernel void template(__global float *d_output,
     __global float *d_inputImage,
     __global float * d_templateImage,
