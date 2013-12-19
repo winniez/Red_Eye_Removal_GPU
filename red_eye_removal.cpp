@@ -21,11 +21,34 @@
 #include <CL/opencl.h>
 #include "util.h"
 #include "candidate.h"
-#define BLOCKSIZE 32
+#define BLOCKSIZE 16
 #define GLOBALSIZE 1024
 
 using namespace cv;
 using namespace std;
+
+void PrintEventInfo(cl_event evt)
+{
+   cl_int error;
+   cl_ulong cl_start_time, cl_end_time, queued, submitted;
+
+   error = clGetEventProfilingInfo(evt, CL_PROFILING_COMMAND_START, sizeof(cl_ulong), &cl_start_time, NULL);
+   OpenCL_CheckError(error, "clGetEventProfilingInfo Error");
+
+   error = clGetEventProfilingInfo(evt, CL_PROFILING_COMMAND_END, sizeof(cl_ulong), &cl_end_time, NULL);
+   OpenCL_CheckError(error, "clGetEventProfilingInfo Error");
+
+   error = clGetEventProfilingInfo(evt, CL_PROFILING_COMMAND_QUEUED, sizeof(cl_ulong), &queued, NULL);
+   OpenCL_CheckError(error, "clGetEventProfilingInfo Error");
+
+   error = clGetEventProfilingInfo(evt, CL_PROFILING_COMMAND_SUBMIT, sizeof(cl_ulong), &submitted, NULL);
+   OpenCL_CheckError(error, "clGetEventProfilingInfo Error");
+   
+   printf("submit->queued: %f ms\t", (submitted-queued)*1e-6);
+   printf("queued->start: %f ms\t",  (cl_start_time-submitted)*1e-6);
+   printf("start->end: %f ms\t",     (cl_end_time-cl_start_time)*1e-6);
+    printf("\n");
+}
 
 int main(int argc, char* argv[])
 {
@@ -184,7 +207,7 @@ int main(int argc, char* argv[])
     d_response = clCreateBuffer(clContext, CL_MEM_READ_WRITE, output_size * sizeof(float), NULL, &errcode);
     //  Create program and kernel
    // Load Program source
-   char *source = OpenCL_LoadProgramSource("templatematch.cl");
+   char *source = OpenCL_LoadProgramSource("templatematch_2.cl");
    if(!source)
       FATAL("Error: Failed to load compute program from file!\n",0);
 
@@ -235,7 +258,8 @@ int main(int argc, char* argv[])
     errcode = clEnqueueNDRangeKernel(clCommandQueue, clKernel, 2, NULL,     globalWorkSize, localWorkSize, 0, NULL, &event_r);
     errcode =  clWaitForEvents(1, &event_r);
     OpenCL_CheckError(errcode, "clEnqueueNDRangeKernel");
-
+    printf("Red channel cross correlation:\t");
+    PrintEventInfo(event_r);
     // Retrieve result from device
     errcode = clEnqueueReadBuffer(clCommandQueue, d_r_output, CL_TRUE, 0, output_size*sizeof(float), h_r_output, 0, NULL, NULL);
     OpenCL_CheckError(errcode, "clEnqueueReadBuffer");
@@ -259,7 +283,8 @@ int main(int argc, char* argv[])
     errcode = clEnqueueNDRangeKernel(clCommandQueue, clKernel, 2, NULL,     globalWorkSize, localWorkSize, 0, NULL, &event_g);
     errcode =  clWaitForEvents(1, &event_g);
     OpenCL_CheckError(errcode, "clEnqueueNDRangeKernel");
-
+    printf("Green channel cross correlation:\t");
+    PrintEventInfo(event_g);
     // Retrieve result from device
     errcode = clEnqueueReadBuffer(clCommandQueue, d_g_output, CL_TRUE, 0, output_size*sizeof(float), h_g_output, 0, NULL, NULL);
     OpenCL_CheckError(errcode, "clEnqueueReadBuffer");
@@ -285,7 +310,8 @@ int main(int argc, char* argv[])
     errcode = clEnqueueNDRangeKernel(clCommandQueue, clKernel, 2, NULL,     globalWorkSize, localWorkSize, 0, NULL, &event_b);
     errcode =  clWaitForEvents(1, &event_b);
     OpenCL_CheckError(errcode, "clEnqueueNDRangeKernel");
-
+    printf("Blue channel cross correlation:\t");
+    PrintEventInfo(event_b);
     // Retrieve result from device
     errcode = clEnqueueReadBuffer(clCommandQueue, d_b_output, CL_TRUE, 0, output_size*sizeof(float), h_b_output, 0, NULL, NULL);
     OpenCL_CheckError(errcode, "clEnqueueReadBuffer");
@@ -305,6 +331,8 @@ int main(int argc, char* argv[])
     errcode = clEnqueueNDRangeKernel(clCommandQueue, clKernel2, 2, NULL,     globalWorkSize, localWorkSize, 0, NULL, &event_combine);
     errcode =  clWaitForEvents(1, &event_combine);
     OpenCL_CheckError(errcode, "clEnqueueNDRangeKernel");
+    printf("Combine response:\t");
+    PrintEventInfo(event_combine);
     // Retrieve result from device
     errcode = clEnqueueReadBuffer(clCommandQueue, d_response, CL_TRUE, 0, output_size*sizeof(float), h_response, 0, NULL, NULL);
     OpenCL_CheckError(errcode, "clEnqueueReadBuffer");
@@ -358,21 +386,23 @@ int main(int argc, char* argv[])
     }
     // sorting
     static CLRadixSort rs(clContext, device_id, clCommandQueue, sort_size, unsorted_ints);
-    cout << "sorting "<< rs.nkeys <<" keys"<<endl<<endl;
+    //cout << "sorting "<< rs.nkeys <<" keys"<<endl<<endl;
     rs.Sort();
     rs.RecupGPU();
-    cout << rs.histo_time<<" s in the histograms"<<endl;
-    cout << rs.scan_time<<" s in the scanning"<<endl;
-    cout << rs.reorder_time<<" s in the reordering"<<endl;
-    cout << rs.transpose_time<<" s in the transposition"<<endl;
-    cout << rs.sort_time <<" s total GPU time (without memory transfers)"<<endl;
+    //cout << rs.histo_time<<" s in the histograms"<<endl;
+    //cout << rs.scan_time<<" s in the scanning"<<endl;
+    //cout << rs.reorder_time<<" s in the reordering"<<endl;
+    //cout << rs.transpose_time<<" s in the transposition"<<endl;
+    //cout << rs.sort_time <<" s total GPU time (without memory transfers)"<<endl;
     
     rs.Check();
     rs.CopyResults(sorted_ints, sort_size);
+    /*
     for (int i = sort_size-1; i > sort_size-50; i--)
     {
         printf("%d\t", sorted_ints[i]);
     }
+    */
     vector<Candidate> candidates = find_match_candidates(sorted_ints, unsorted_ints, sort_size, output_size, gray_img_float.cols, gray_img_float.rows);
     // get the index of the largest cross correlation value
     

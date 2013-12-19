@@ -102,7 +102,7 @@ CLRadixSort::CLRadixSort(cl_context GPUContext,
   assert(err == CL_SUCCESS);
    
 
-  cout << "Construct the random list"<<endl;
+  //cout << "Construct the random list"<<endl;
   // construction of a random list
   /*
   uint maxint=_MAXINT;
@@ -123,7 +123,7 @@ CLRadixSort::CLRadixSort(cl_context GPUContext,
     h_Permut[i] = i;
   }
 
-  cout << "Send to the GPU"<<endl;
+  //cout << "Send to the GPU"<<endl;
   // copy on the GPU
   d_inKeys  = clCreateBuffer(Context,
 			     CL_MEM_READ_WRITE,
@@ -430,7 +430,7 @@ void CLRadixSort::Sort(){
 // check the computation at the end
 void CLRadixSort::Check(){
   
-  cout << "Get the data from the GPU"<<endl;
+  //cout << "Get the data from the GPU"<<endl;
 
   RecupGPU();
 
