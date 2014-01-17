@@ -207,7 +207,7 @@ int main(int argc, char* argv[])
     d_response = clCreateBuffer(clContext, CL_MEM_READ_WRITE, output_size * sizeof(float), NULL, &errcode);
     //  Create program and kernel
    // Load Program source
-   char *source = OpenCL_LoadProgramSource("templatematch_3.cl");
+   char *source = OpenCL_LoadProgramSource("templatematch.cl");
    if(!source)
       FATAL("Error: Failed to load compute program from file!\n",0);
 
@@ -244,7 +244,7 @@ int main(int argc, char* argv[])
     errcode = clSetKernelArg(clKernel, 8, sizeof(int), (void *)&temp_width);
     errcode = clSetKernelArg(clKernel, 9, sizeof(int), (void *)&template_size);
     errcode = clSetKernelArg(clKernel, 10, sizeof(float), (void *)&temp_r_mean_float);
-    errcode = clSetKernelArg(clKernel, 11, localSize, NULL);
+    //errcode = clSetKernelArg(clKernel, 11, localSize, NULL);
     OpenCL_CheckError(errcode, "clSetKernelArg");
 
     // Launch OpenCL Kernel
@@ -275,7 +275,7 @@ int main(int argc, char* argv[])
     errcode = clSetKernelArg(clKernel, 8, sizeof(int), (void *)&temp_width);
     errcode = clSetKernelArg(clKernel, 9, sizeof(int), (void *)&template_size);
     errcode = clSetKernelArg(clKernel, 10, sizeof(float), (void *)&temp_g_mean_float);
-    errcode = clSetKernelArg(clKernel, 11, localSize, NULL);
+    //errcode = clSetKernelArg(clKernel, 11, localSize, NULL);
     OpenCL_CheckError(errcode, "clSetKernelArg");
 
     // Launch OpenCL Kernel
@@ -301,7 +301,7 @@ int main(int argc, char* argv[])
     errcode = clSetKernelArg(clKernel, 8, sizeof(int), (void *)&temp_width);
     errcode = clSetKernelArg(clKernel, 9, sizeof(int), (void *)&template_size);
     errcode = clSetKernelArg(clKernel, 10, sizeof(float), (void *)&temp_b_mean_float);
-    errcode = clSetKernelArg(clKernel, 11, localSize, NULL);
+    //errcode = clSetKernelArg(clKernel, 11, localSize, NULL);
     OpenCL_CheckError(errcode, "clSetKernelArg");
 
     // Launch OpenCL Kernel
